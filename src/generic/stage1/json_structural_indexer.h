@@ -231,7 +231,7 @@ simdjson_inline void json_structural_indexer::step<128>(const uint8_t *block, bu
 template<>
 simdjson_inline void json_structural_indexer::step<64>(const uint8_t *block, buf_block_reader<64> &reader) noexcept {
   simd::simd8x64<uint8_t> in_1(block);
-  json_block block_1 = scanner.next(in_1);
+  json_block block_1 = scanner.next(in_1, block);
   this->next(in_1, block_1, reader.block_index());
   reader.advance();
 }

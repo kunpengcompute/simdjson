@@ -60,8 +60,8 @@ simdjson_inline void json_minifier::step<128>(const uint8_t *block_buf, buf_bloc
 template<>
 simdjson_inline void json_minifier::step<64>(const uint8_t *block_buf, buf_block_reader<64> &reader) noexcept {
   simd::simd8x64<uint8_t> in_1(block_buf);
-  json_block block_1 = scanner.next(in_1);
-  this->next(block_buf, block_1);
+  json_block block_1 = scanner.next(in_1, block_buf);
+  this->next(in_1, block_1);
   reader.advance();
 }
 
