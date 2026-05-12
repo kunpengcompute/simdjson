@@ -10,11 +10,14 @@
 
 #include <simdjson/arm64/begin.h>
 #include <generic/amalgamated.h>
+#if defined(__ARM_FEATURE_SVE)
+#include <arm_sve.h>
+#define SIMDJSON_GENERIC_JSON_STRING_SCANNER_CUSTOM_NEXT
+#endif
 #include <generic/stage1/amalgamated.h>
 #include <generic/stage2/amalgamated.h>
-
-#ifdef __ARM_FEATURE_SVE2
-#include <arm_sve.h>
+#if defined(__ARM_FEATURE_SVE)
+#undef SIMDJSON_GENERIC_JSON_STRING_SCANNER_CUSTOM_NEXT
 #endif
 
 //
@@ -121,6 +124,43 @@ simdjson_inline json_character_block json_character_block::classify(const simd::
 
   return { whitespace, op };
 }
+
+#if defined(__ARM_FEATURE_SVE)
+simdjson_really_inline stage1::json_string_block stage1::json_string_scanner::next(const simd::simd8x64<uint8_t>& in, const uint8_t* block) {
+  if (block != nullptr) {
+    svbool_t pg32 = svptrue_pat_b8(SV_VL32);
+    svuint8_t data_lo = svld1_u8(pg32, block);
+    svbool_t quote_mask_lo = svcmpeq_n_u8(pg32, data_lo, '"');
+    svbool_t backslash_mask_lo = svcmpeq_n_u8(pg32, data_lo, '\\');
+
+    svuint8_t data_hi = svld1_u8(pg32, block + 32);
+    svbool_t quote_mask_hi = svcmpeq_n_u8(pg32, data_hi, '"');
+    svbool_t backslash_mask_hi = svcmpeq_n_u8(pg32, data_hi, '\\');
+
+    uint64_t quote_match = 0;
+    uint64_t backslash = 0;
+    uint32_t* quote_ptr = reinterpret_cast<uint32_t*>(&quote_match);
+    uint32_t* backslash_ptr = reinterpret_cast<uint32_t*>(&backslash);
+
+    __asm__ volatile("str %1, [%0]" : : "r"(quote_ptr),       "Upl"(quote_mask_lo) : "memory");
+    __asm__ volatile("str %1, [%0]" : : "r"(quote_ptr + 1),   "Upl"(quote_mask_hi) : "memory");
+    __asm__ volatile("str %1, [%0]" : : "r"(backslash_ptr),   "Upl"(backslash_mask_lo) : "memory");
+    __asm__ volatile("str %1, [%0]" : : "r"(backslash_ptr+1), "Upl"(backslash_mask_hi) : "memory");
+
+    const uint64_t escaped = escape_scanner.next(backslash).escaped;
+    const uint64_t quote = quote_match & ~escaped;
+    const uint64_t in_string = prefix_xor(quote) ^ prev_in_string;
+    prev_in_string = uint64_t(static_cast<int64_t>(in_string) >> 63);
+    return stage1::json_string_block(escaped, quote, in_string);
+  }
+  const uint64_t backslash = in.eq('\\');
+  const uint64_t escaped = escape_scanner.next(backslash).escaped;
+  const uint64_t quote = in.eq('"') & ~escaped;
+  const uint64_t in_string = prefix_xor(quote) ^ prev_in_string;
+  prev_in_string = uint64_t(static_cast<int64_t>(in_string) >> 63);
+  return stage1::json_string_block(escaped, quote, in_string);
+}
+#endif
 
 simdjson_inline bool is_ascii(const simd8x64<uint8_t>& input) {
     simd8<uint8_t> bits = input.reduce_or();

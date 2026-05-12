@@ -132,7 +132,7 @@ simdjson_inline uint64_t follows(const uint64_t match, uint64_t &overflow) {
 }
 
 simdjson_inline json_block json_scanner::next(const simd::simd8x64<uint8_t>& in, const uint8_t* block) {
-  json_string_block strings = string_scanner.next(in);
+  json_string_block strings = string_scanner.next(in, block);
   // identifies the white-space and the structural characters
   json_character_block characters = json_character_block::classify(in, block);
   // The term "scalar" refers to anything except structural characters and white space
