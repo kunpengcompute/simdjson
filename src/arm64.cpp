@@ -10,8 +10,15 @@
 
 #include <simdjson/arm64/begin.h>
 #include <generic/amalgamated.h>
+#if defined(__ARM_FEATURE_SVE)
+#include <arm_sve.h>
+#define SIMDJSON_GENERIC_JSON_STRING_SCANNER_CUSTOM_NEXT
+#endif
 #include <generic/stage1/amalgamated.h>
 #include <generic/stage2/amalgamated.h>
+#if defined(__ARM_FEATURE_SVE)
+#undef SIMDJSON_GENERIC_JSON_STRING_SCANNER_CUSTOM_NEXT
+#endif
 
 //
 // Stage 1
@@ -37,7 +44,46 @@ namespace {
 
 using namespace simd;
 
-simdjson_inline json_character_block json_character_block::classify(const simd::simd8x64<uint8_t>& in) {
+simdjson_inline json_character_block json_character_block::classify(const simd::simd8x64<uint8_t>& in, const uint8_t* block) {
+  (void)block;
+#if defined(__ARM_FEATURE_SVE2)
+  if (block != nullptr) {
+    // svmatch works per 128-bit segment, so we need one 16-byte class table per segment.
+    static const uint8_t op_chars_data[32] __attribute__((aligned(32))) = {
+        0x3a, 0x2c, 0x5b, 0x5d, 0x7b, 0x7d, 0x7d, 0x7d, 0x7d, 0x7d, 0x7d, 0x7d, 0x7d, 0x7d, 0x7d, 0x7d,
+        0x3a, 0x2c, 0x5b, 0x5d, 0x7b, 0x7d, 0x7d, 0x7d, 0x7d, 0x7d, 0x7d, 0x7d, 0x7d, 0x7d, 0x7d, 0x7d
+    };
+    static const uint8_t ws_chars_data[32] __attribute__((aligned(32))) = {
+        0x09, 0x0a, 0x0d, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
+        0x09, 0x0a, 0x0d, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20
+    };
+
+    svbool_t pg32 = svptrue_pat_b8(SV_VL32);
+    const svuint8_t op_chars = svld1_u8(pg32, op_chars_data);
+    const svuint8_t ws_chars = svld1_u8(pg32, ws_chars_data);
+
+    svuint8_t data_lo = svld1_u8(pg32, block);
+    svbool_t op_mask_lo = svmatch_u8(pg32, data_lo, op_chars);
+    svbool_t ws_mask_lo = svmatch_u8(pg32, data_lo, ws_chars);
+
+    svuint8_t data_hi = svld1_u8(pg32, block + 32);
+    svbool_t op_mask_hi = svmatch_u8(pg32, data_hi, op_chars);
+    svbool_t ws_mask_hi = svmatch_u8(pg32, data_hi, ws_chars);
+
+    json_character_block result;
+
+    uint32_t* op_ptr = reinterpret_cast<uint32_t*>(&result._op);
+    uint32_t* ws_ptr = reinterpret_cast<uint32_t*>(&result._whitespace);
+
+    __asm__ volatile("str %1, [%0]" : : "r"(op_ptr),     "Upl"(op_mask_lo) : "memory");
+    __asm__ volatile("str %1, [%0]" : : "r"(op_ptr + 1), "Upl"(op_mask_hi) : "memory");
+
+    __asm__ volatile("str %1, [%0]" : : "r"(ws_ptr),     "Upl"(ws_mask_lo) : "memory");
+    __asm__ volatile("str %1, [%0]" : : "r"(ws_ptr + 1), "Upl"(ws_mask_hi) : "memory");
+
+    return result;
+  }
+#endif
   const uint8x16_t op_table = simd8<uint8_t>(
     0xff, 0, ',', ':', 0, '[', ']', '{', '}', 0, 0, 0, 0, 0, 0, 0
   );
@@ -78,6 +124,43 @@ simdjson_inline json_character_block json_character_block::classify(const simd::
 
   return { whitespace, op };
 }
+
+#if defined(__ARM_FEATURE_SVE)
+simdjson_really_inline stage1::json_string_block stage1::json_string_scanner::next(const simd::simd8x64<uint8_t>& in, const uint8_t* block) {
+  if (block != nullptr) {
+    svbool_t pg32 = svptrue_pat_b8(SV_VL32);
+    svuint8_t data_lo = svld1_u8(pg32, block);
+    svbool_t quote_mask_lo = svcmpeq_n_u8(pg32, data_lo, '"');
+    svbool_t backslash_mask_lo = svcmpeq_n_u8(pg32, data_lo, '\\');
+
+    svuint8_t data_hi = svld1_u8(pg32, block + 32);
+    svbool_t quote_mask_hi = svcmpeq_n_u8(pg32, data_hi, '"');
+    svbool_t backslash_mask_hi = svcmpeq_n_u8(pg32, data_hi, '\\');
+
+    uint64_t quote_match = 0;
+    uint64_t backslash = 0;
+    uint32_t* quote_ptr = reinterpret_cast<uint32_t*>(&quote_match);
+    uint32_t* backslash_ptr = reinterpret_cast<uint32_t*>(&backslash);
+
+    __asm__ volatile("str %1, [%0]" : : "r"(quote_ptr),       "Upl"(quote_mask_lo) : "memory");
+    __asm__ volatile("str %1, [%0]" : : "r"(quote_ptr + 1),   "Upl"(quote_mask_hi) : "memory");
+    __asm__ volatile("str %1, [%0]" : : "r"(backslash_ptr),   "Upl"(backslash_mask_lo) : "memory");
+    __asm__ volatile("str %1, [%0]" : : "r"(backslash_ptr+1), "Upl"(backslash_mask_hi) : "memory");
+
+    const uint64_t escaped = escape_scanner.next(backslash).escaped;
+    const uint64_t quote = quote_match & ~escaped;
+    const uint64_t in_string = prefix_xor(quote) ^ prev_in_string;
+    prev_in_string = uint64_t(static_cast<int64_t>(in_string) >> 63);
+    return stage1::json_string_block(escaped, quote, in_string);
+  }
+  const uint64_t backslash = in.eq('\\');
+  const uint64_t escaped = escape_scanner.next(backslash).escaped;
+  const uint64_t quote = in.eq('"') & ~escaped;
+  const uint64_t in_string = prefix_xor(quote) ^ prev_in_string;
+  prev_in_string = uint64_t(static_cast<int64_t>(in_string) >> 63);
+  return stage1::json_string_block(escaped, quote, in_string);
+}
+#endif
 
 simdjson_inline bool is_ascii(const simd8x64<uint8_t>& input) {
     simd8<uint8_t> bits = input.reduce_or();

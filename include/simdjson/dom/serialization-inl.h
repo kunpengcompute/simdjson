@@ -132,6 +132,27 @@ static char *fast_itoa(char *output, int64_t value) noexcept {
   std::memcpy(output, write_pointer, len);
   return output + len;
 }
+
+/**@private
+ * Lazy-initialized two-digit lookup table for faster itoa.
+ * Only allocated when serialization is actually used.
+ */
+static inline const char* get_digits_table() noexcept {
+  static const char kDigits100[200] = {
+    '0','0','0','1','0','2','0','3','0','4','0','5','0','6','0','7','0','8','0','9',
+    '1','0','1','1','1','2','1','3','1','4','1','5','1','6','1','7','1','8','1','9',
+    '2','0','2','1','2','2','2','3','2','4','2','5','2','6','2','7','2','8','2','9',
+    '3','0','3','1','3','2','3','3','3','4','3','5','3','6','3','7','3','8','3','9',
+    '4','0','4','1','4','2','4','3','4','4','4','5','4','6','4','7','4','8','4','9',
+    '5','0','5','1','5','2','5','3','5','4','5','5','5','6','5','7','5','8','5','9',
+    '6','0','6','1','6','2','6','3','6','4','6','5','6','6','6','7','6','8','6','9',
+    '7','0','7','1','7','2','7','3','7','4','7','5','7','6','7','7','7','8','7','9',
+    '8','0','8','1','8','2','8','3','8','4','8','5','8','6','8','7','8','8','8','9',
+    '9','0','9','1','9','2','9','3','9','4','9','5','9','6','9','7','9','8','9','9'
+  };
+  return kDigits100;
+}
+
 /**@private
  * This converts an unsigned integer into a character sequence.
  * The caller is responsible for providing enough memory (at least
@@ -142,22 +163,75 @@ static char *fast_itoa(char *output, int64_t value) noexcept {
  * we want to support C++11.
  */
 static char *fast_itoa(char *output, uint64_t value) noexcept {
-  // This is a standard implementation of itoa.
   char buffer[20];
-  const char *const end_buffer = buffer + 20;
   char *write_pointer = buffer + 19;
-  // A faster approach is possible if we expect large integers:
-  // unroll the loop (work in 100s, 1000s) and use some kind of
-  // memoization.
-  while (value >= 10) {
-    *write_pointer-- = char('0' + (value % 10));
-    value /= 10;
-  };
-  *write_pointer = char('0' + value);
+
+  const char* digits = get_digits_table();
+
+  // Process two digits at a time using lookup table
+  while (value >= 100) {
+    const uint64_t q = value / 100;
+    const uint64_t r = value % 100;
+    value = q;
+    const char* d = digits + r * 2;
+    *write_pointer-- = d[1];
+    *write_pointer-- = d[0];
+  }
+
+  // Handle remaining 1-2 digits
+  if (value >= 10) {
+    const char* d = digits + value * 2;
+    *write_pointer-- = d[1];
+    *write_pointer = d[0];
+  } else {
+    *write_pointer = char('0' + value);
+  }
+
+  const char *const end_buffer = buffer + 20;
   size_t len = end_buffer - write_pointer;
   std::memcpy(output, write_pointer, len);
   return output + len;
 }
+
+// Escape tables and helpers (ported from ksonic)
+struct quoted_char {
+  int n;
+  const char s[8];
+};
+
+static const struct quoted_char kQuoteTab[256] = {
+    {6, "\\u0000"}, {6, "\\u0001"}, {6, "\\u0002"}, {6, "\\u0003"},
+    {6, "\\u0004"}, {6, "\\u0005"}, {6, "\\u0006"}, {6, "\\u0007"},
+    {2, "\\b"},     {2, "\\t"},     {2, "\\n"},     {6, "\\u000b"},
+    {2, "\\f"},     {2, "\\r"},     {6, "\\u000e"}, {6, "\\u000f"},
+    {6, "\\u0010"}, {6, "\\u0011"}, {6, "\\u0012"}, {6, "\\u0013"},
+    {6, "\\u0014"}, {6, "\\u0015"}, {6, "\\u0016"}, {6, "\\u0017"},
+    {6, "\\u0018"}, {6, "\\u0019"}, {6, "\\u001a"}, {6, "\\u001b"},
+    {6, "\\u001c"}, {6, "\\u001d"}, {6, "\\u001e"}, {6, "\\u001f"},
+    {0, ""}, {0, ""}, {2, "\\\""}, {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""},
+    {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""},
+    {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""},
+    {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""},
+    {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""},
+    {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""},
+    {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""}, {0, ""},
+    {0, ""}, {0, ""}, {0, ""}, {0, ""}, {2, "\\\\"}, {0, ""}, {0, ""}, {0, ""}
+};
+
+static const bool kNeedEscaped[256] = {
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+
 
 } // anonymous namespace
 namespace internal {
@@ -271,86 +345,55 @@ template <class formatter>
 simdjson_inline void
 base_formatter<formatter>::string(std::string_view unescaped) {
   one_char('\"');
-  size_t i = 0;
-  // Fast path for the case where we have no control character, no ", and no
-  // backslash. This should include most keys.
-  //
-  // We would like to use 'bool' but some compilers take offense to bitwise
-  // operation with bool types.
-  constexpr static char needs_escaping[] = {
-      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-      1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-  for (; i + 8 <= unescaped.length(); i += 8) {
-    // Poor's man vectorization. This could get much faster if we used SIMD.
-    //
-    // It is not the case that replacing '|' with '||' would be neutral
-    // performance-wise.
-    if (needs_escaping[uint8_t(unescaped[i])] |
-        needs_escaping[uint8_t(unescaped[i + 1])] |
-        needs_escaping[uint8_t(unescaped[i + 2])] |
-        needs_escaping[uint8_t(unescaped[i + 3])] |
-        needs_escaping[uint8_t(unescaped[i + 4])] |
-        needs_escaping[uint8_t(unescaped[i + 5])] |
-        needs_escaping[uint8_t(unescaped[i + 6])] |
-        needs_escaping[uint8_t(unescaped[i + 7])]) {
-      break;
-    }
-  }
-  for (; i < unescaped.length(); i++) {
-    if (needs_escaping[uint8_t(unescaped[i])]) {
-      break;
-    }
-  }
-  // The following is also possible and omits a 256-byte table, but it is
-  // slower: for (; (i < unescaped.length()) && (uint8_t(unescaped[i]) > 0x1F)
-  //      && (unescaped[i] != '\"') && (unescaped[i] != '\\'); i++) {}
 
-  // At least for long strings, the following should be fast. We could
-  // do better by integrating the checks and the insertion.
-  chars(unescaped.data(), unescaped.data() + i);
-  // We caught a control character if we enter this loop (slow).
-  // Note that we are do not restart from the beginning, but rather we continue
-  // from the point where we encountered something that requires escaping.
-  for (; i < unescaped.length(); i++) {
-    switch (unescaped[i]) {
-    case '\"': {
-      const char *s = "\\\"";
-      chars(s, s + 2);
-    } break;
-    case '\\': {
-      const char *s = "\\\\";
-      chars(s, s + 2);
-    } break;
-    default:
-      if (uint8_t(unescaped[i]) <= 0x1F) {
-        // If packed, this uses 8 * 32 bytes.
-        // Note that we expect most compilers to embed this code in the data
-        // section.
-        constexpr static escape_sequence escaped[32] = {
-            {6, "\\u0000"}, {6, "\\u0001"}, {6, "\\u0002"}, {6, "\\u0003"},
-            {6, "\\u0004"}, {6, "\\u0005"}, {6, "\\u0006"}, {6, "\\u0007"},
-            {2, "\\b"},     {2, "\\t"},     {2, "\\n"},     {6, "\\u000b"},
-            {2, "\\f"},     {2, "\\r"},     {6, "\\u000e"}, {6, "\\u000f"},
-            {6, "\\u0010"}, {6, "\\u0011"}, {6, "\\u0012"}, {6, "\\u0013"},
-            {6, "\\u0014"}, {6, "\\u0015"}, {6, "\\u0016"}, {6, "\\u0017"},
-            {6, "\\u0018"}, {6, "\\u0019"}, {6, "\\u001a"}, {6, "\\u001b"},
-            {6, "\\u001c"}, {6, "\\u001d"}, {6, "\\u001e"}, {6, "\\u001f"}};
-        auto u = escaped[uint8_t(unescaped[i])];
-        chars(u.string, u.string + u.length);
-      } else {
-        one_char(unescaped[i]);
-      }
-    } // switch
-  } // for
+  const char *src = unescaped.data();
+  size_t nb = unescaped.length();
+
+  if (nb == 0) {
+    one_char('\"');
+    return;
+  }
+
+  // 8-byte unrolled scan for first escape character
+  size_t i = 0;
+  for (; i + 8 <= nb; i += 8) {
+    if (kNeedEscaped[uint8_t(src[i])] |
+        kNeedEscaped[uint8_t(src[i + 1])] |
+        kNeedEscaped[uint8_t(src[i + 2])] |
+        kNeedEscaped[uint8_t(src[i + 3])] |
+        kNeedEscaped[uint8_t(src[i + 4])] |
+        kNeedEscaped[uint8_t(src[i + 5])] |
+        kNeedEscaped[uint8_t(src[i + 6])] |
+        kNeedEscaped[uint8_t(src[i + 7])]) {
+      break;
+    }
+  }
+  for (; i < nb; i++) {
+    if (kNeedEscaped[uint8_t(src[i])]) {
+      break;
+    }
+  }
+
+  // Batch copy clean prefix
+  chars(src, src + i);
+
+  // Handle remaining: table-driven escape + batch copy clean segments
+  while (i < nb) {
+    // Escape current character using lookup table
+    int nc = kQuoteTab[uint8_t(src[i])].n;
+    chars(kQuoteTab[uint8_t(src[i])].s, kQuoteTab[uint8_t(src[i])].s + nc);
+    i++;
+
+    // Find and batch copy next clean segment
+    size_t start = i;
+    while (i < nb && !kNeedEscaped[uint8_t(src[i])]) {
+      i++;
+    }
+    if (i > start) {
+      chars(src + start, src + i);
+    }
+  }
+
   one_char('\"');
 }
 

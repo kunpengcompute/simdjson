@@ -106,7 +106,7 @@ private:
 class json_scanner {
 public:
   json_scanner() = default;
-  simdjson_inline json_block next(const simd::simd8x64<uint8_t>& in);
+  simdjson_inline json_block next(const simd::simd8x64<uint8_t>& in, const uint8_t* block = nullptr);
   // Returns either UNCLOSED_STRING or SUCCESS
   simdjson_warn_unused simdjson_inline error_code finish();
 
@@ -131,10 +131,10 @@ simdjson_inline uint64_t follows(const uint64_t match, uint64_t &overflow) {
   return result;
 }
 
-simdjson_inline json_block json_scanner::next(const simd::simd8x64<uint8_t>& in) {
-  json_string_block strings = string_scanner.next(in);
+simdjson_inline json_block json_scanner::next(const simd::simd8x64<uint8_t>& in, const uint8_t* block) {
+  json_string_block strings = string_scanner.next(in, block);
   // identifies the white-space and the structural characters
-  json_character_block characters = json_character_block::classify(in);
+  json_character_block characters = json_character_block::classify(in, block);
   // The term "scalar" refers to anything except structural characters and white space
   // (so letters, numbers, quotes).
   // We want follows_scalar to mark anything that follows a non-quote scalar (so letters and numbers).

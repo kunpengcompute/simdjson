@@ -40,7 +40,7 @@ struct json_string_block {
 // Scans blocks for string characters, storing the state necessary to do so
 class json_string_scanner {
 public:
-  simdjson_really_inline json_string_block next(const simd::simd8x64<uint8_t>& in);
+  simdjson_really_inline json_string_block next(const simd::simd8x64<uint8_t>& in, const uint8_t* block = nullptr);
   // Returns either UNCLOSED_STRING or SUCCESS
   simdjson_really_inline error_code finish();
 
@@ -59,7 +59,9 @@ private:
 //
 // Backslash sequences outside of quotes will be detected in stage 2.
 //
-simdjson_really_inline json_string_block json_string_scanner::next(const simd::simd8x64<uint8_t>& in) {
+#ifndef SIMDJSON_GENERIC_JSON_STRING_SCANNER_CUSTOM_NEXT
+simdjson_really_inline json_string_block json_string_scanner::next(const simd::simd8x64<uint8_t>& in, const uint8_t* block) {
+  (void)block;
   const uint64_t backslash = in.eq('\\');
   const uint64_t escaped = escape_scanner.next(backslash).escaped;
   const uint64_t quote = in.eq('"') & ~escaped;
@@ -83,6 +85,7 @@ simdjson_really_inline json_string_block json_string_scanner::next(const simd::s
   // or we get copy elision.
   return json_string_block(escaped, quote, in_string);
 }
+#endif // SIMDJSON_GENERIC_JSON_STRING_SCANNER_CUSTOM_NEXT
 
 simdjson_really_inline error_code json_string_scanner::finish() {
   if (prev_in_string) {
@@ -95,5 +98,8 @@ simdjson_really_inline error_code json_string_scanner::finish() {
 } // unnamed namespace
 } // namespace SIMDJSON_IMPLEMENTATION
 } // namespace simdjson
+
+// Clear CUSTOM_NEXT so other implementations can set it if they need to.
+#undef SIMDJSON_GENERIC_JSON_STRING_SCANNER_CUSTOM_NEXT
 
 #endif // SIMDJSON_SRC_GENERIC_STAGE1_JSON_STRING_SCANNER_H
