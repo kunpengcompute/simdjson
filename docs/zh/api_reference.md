@@ -2,16 +2,16 @@
 
 ## 函数说明
 
-simdjson 补丁仓已优化函数如[**表 1** simdjson 补丁仓已优化函数列表](#simdjson补丁仓已优化函数列表)所示。
+simdjson补丁仓已优化函数如[**表 1** simdjson补丁仓已优化函数列表](#simdjson补丁仓已优化函数列表)所示。
 
-**表 1** simdjson 补丁仓已优化函数列表<a id="simdjson补丁仓已优化函数列表"></a>
+**表 1** simdjson补丁仓已优化函数列表<a id="simdjson补丁仓已优化函数列表"></a>
 
 |名称|说明|
 |--|--|
-|parse|将 JSON 字符串解析为 DOM 文档对象，Stage 1 阶段通过 SVE2 指令优化字符分类与字符串扫描。|
-|iterate|按需遍历 JSON 文档，Stage 1 阶段通过 SVE2 指令优化字符分类与字符串扫描。|
-|to_string / minify|将 DOM 节点序列化为 JSON 字符串，通过查找表优化整数转换与字符串转义。|
-|json_minifier::minify|快速去除原始 JSON 字符串的空白字符，Stage 1 阶段通过 SVE2 指令优化字符分类。|
+|parse|将JSON字符串解析为DOM文档对象，Stage 1阶段通过SVE2指令优化字符分类与字符串扫描。|
+|iterate|按需遍历JSON文档，Stage 1阶段通过SVE2指令优化字符分类与字符串扫描。|
+|to_string/minify|将DOM节点序列化为JSON字符串，通过查找表优化整数转换与字符串转义。|
+|json_minifier::minify|快速去除原始JSON字符串的空白字符，Stage 1阶段通过SVE2指令优化字符分类。|
 
 ## 函数定义
 
@@ -19,7 +19,7 @@ simdjson 补丁仓已优化函数如[**表 1** simdjson 补丁仓已优化函数
 
 **函数功能**
 
-将 JSON 字符串解析为 DOM 文档对象，支持完整的 JSON 语法解析，包括对象、数组、字符串、数字、布尔值和 null。
+将JSON字符串解析为DOM文档对象，支持完整的JSON语法解析，包括对象、数组、字符串、数字、布尔值和null。
 
 **函数定义**
 
@@ -32,19 +32,20 @@ simdjson_result<element> parser.parse(const padded_string &s) noexcept;
 
 |参数名|描述|取值范围|输入/输出|
 |--|--|--|--|
-|s|JSON 字符串|padded_string 类型|输入|
+|s|JSON字符串。|padded_string类型|输入|
 
 **返回值**
 
-返回 `simdjson_result<element>`，包含解析后的 DOM 根元素或错误码。
+返回`simdjson_result<element>`，包含解析后的DOM根元素或错误码。
 
->![](public_sys-resources/icon-note.gif) **说明：** 
->解析过程中会进行语法检查和 UTF-8 校验。如果 JSON 格式不正确，可通过 `.error()` 方法检查错误码。
+> **说明：** 
+>解析过程中会进行语法检查和UTF-8校验。如果JSON格式不正确，可通过`.error()`方法检查错误码。
 >
->**关于 padding 的使用：** simdjson 使用 SIMD 指令批量处理数据，会在输入末尾读取额外的 `SIMDJSON_PADDING`（默认 64 字节）用于性能优化和保证正确性。因此输入缓冲区必须包含这些额外字节。推荐使用：
->- `_padded` 字面量后缀（字符串字面量）
->- `padded_string::load("file.json")`（从文件加载）
->- `padded_string` 类型（从 std::string 构造）
+**关于padding 的使用：** simdjson使用SIMD指令批量处理数据，会在输入末尾读取额外的`SIMDJSON_PADDING`（默认64字节）用于性能优化和保证正确性。因此输入缓冲区必须包含这些额外字节。推荐使用：
+
+- `_padded`字面量后缀（字符串字面量）。
+- `padded_string::load("file.json")`（从文件加载）。
+- `padded_string` 类型（从std::string构造）。
 
 **示例**
 
@@ -75,7 +76,7 @@ int main() {
 
 **函数功能**
 
-按需遍历 JSON 文档，只解析访问到的部分，适合处理大型 JSON 文档或仅需访问部分字段的场景。
+按需遍历JSON文档，只解析访问到的部分，适合处理大型JSON文档或仅需访问部分字段的场景。
 
 **函数定义**
 
@@ -88,14 +89,14 @@ simdjson_result<document> parser.iterate(const padded_string &s) noexcept;
 
 |参数名|描述|取值范围|输入/输出|
 |--|--|--|--|
-|s|JSON 字符串|padded_string 类型|输入|
+|s|JSON字符串。|padded_string类型|输入|
 
 **返回值**
 
-返回 `simdjson_result<document>`，包含可按需遍历的文档或错误码。
+返回`simdjson_result<document>`，包含可按需遍历的文档或错误码。
 
->![](public_sys-resources/icon-note.gif) **说明：** 
->On-Demand 模式要求按文档顺序访问字段，不支持随机访问和回溯。访问字段的顺序应与 JSON 文档中的顺序一致，以获得最佳性能。
+>**说明：** 
+>On-Demand模式要求按文档顺序访问字段，不支持随机访问和回溯。访问字段的顺序应与JSON文档中的顺序一致，以获得最佳性能。
 
 **示例**
 
@@ -127,11 +128,11 @@ int main() {
 }
 ```
 
-### to_string / minify
+### to_string/minify
 
 **函数功能**
 
-将已解析的 DOM 元素序列化为 minified JSON 字符串。`minify(doc)` 和 `to_string(doc)` 是同一个接口。
+将已解析的DOM元素序列化为minified JSON字符串。`minify(doc)`和`to_string(doc)`是同一个接口。
 
 **函数定义**
 
@@ -144,11 +145,11 @@ std::string simdjson::minify(element value);  // 等价于 to_string
 
 |参数名|描述|取值范围|输入/输出|
 |--|--|--|--|
-|value|DOM 元素|有效的 DOM 对象|输入|
+|value|DOM元素。|有效的DOM对象|输入|
 
 **返回值**
 
-返回序列化后的 JSON 字符串（minified 格式，无多余空白）。
+返回序列化后的JSON字符串（minified格式，无多余空白）。
 
 **示例**
 
@@ -185,7 +186,7 @@ int main() {
 
 **函数功能**
 
-快速去除原始 JSON 字符串中的空白字符（空格、制表符、换行符等），生成紧凑的 JSON 字符串。此函数不进行解析或验证，直接使用 SIMD 指令进行字节操作，性能极高。
+快速去除原始JSON字符串中的空白字符（空格、制表符、换行符等），生成紧凑的JSON字符串。此函数不进行解析或验证，直接使用SIMD指令进行字节操作，性能极高。
 
 **函数定义**
 
@@ -202,20 +203,20 @@ error_code simdjson::minify(
 
 |参数名|描述|取值范围|输入/输出|
 |--|--|--|--|
-|buf|输入 JSON 字符串缓冲区|非空指针|输入|
-|len|输入缓冲区长度|非负整数|输入|
-|dst|输出缓冲区|非空指针，至少与输入同样大|输出|
-|dst_len|输出长度|非负整数|输出|
+|buf|输入JSON字符串缓冲区。|非空指针|输入|
+|len|输入缓冲区长度。|非负整数|输入|
+|dst|输出缓冲区。|非空指针，至少与输入同样大|输出|
+|dst_len|输出长度。|非负整数|输出|
 
 **返回值**
 
-- 成功：返回 `SUCCESS`（错误码为 0）
-- 失败：返回相应的错误码
+- 成功：返回`SUCCESS`（错误码为0）。
+- 失败：返回相应的错误码。
 
-Minify 后的结果存储在 `dst` 缓冲区中，实际长度通过 `dst_len` 返回。
+Minify后的结果存储在`dst`缓冲区中，实际长度通过`dst_len`返回。
 
->![](public_sys-resources/icon-note.gif) **说明：** 
->此函数不解析或验证 JSON，仅移除空白字符。如果需要验证 JSON 格式，请使用 `parse()` 或 `iterate()` 函数。
+>**说明：** 
+>此函数不解析或验证JSON，仅移除空白字符。如果需要验证JSON格式，请使用`parse()`或`iterate()`函数。
 
 **示例**
 

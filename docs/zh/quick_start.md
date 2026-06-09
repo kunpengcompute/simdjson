@@ -1,17 +1,17 @@
 # 快速入门
 
-## simdjson 基础概念
+## simdjson基础概念
 
-simdjson 提供两种主要的 JSON 访问模式：
+simdjson提供两种主要的JSON访问模式。
 
-- **DOM 模式**：一次解析，构建完整的文档树，支持随机访问和多次遍历
-- **On-Demand 模式**：按需遍历，只解析访问到的部分，内存占用更低
+- **DOM模式**：一次解析，构建完整的文档树，支持随机访问和多次遍历。
+- **On-Demand模式**：按需遍历，只解析访问到的部分，内存占用更低。
 
-详细的 API 使用方法和示例请参见《[API 参考](./api_reference.md)》。
+详细的API使用方法和示例请参见《[API参考](./api_reference.md)》。
 
 ## 运行时实现选择
 
-simdjson 会自动选择适合当前 CPU 的最佳实现：
+simdjson会自动选择适合当前CPU的最佳实现。
 
 ```cpp
 #include <simdjson.h>
@@ -34,75 +34,75 @@ int main() {
 }
 ```
 
-在鲲鹏 920 处理器上，您应该看到 `arm64` 实现处于活跃状态，并且支持 SVE2 优化。
+在鲲鹏处理器上，您应该看到`arm64`实现处于活跃状态。
 
-## 完整示例
+## 使用示例
 
-创建 `example.cpp`：
+1. 创建`example.cpp`。
 
-```cpp
-#include <simdjson.h>
-#include <iostream>
-#include <fstream>
+   ```cpp
+   #include <simdjson.h>
+   #include <iostream>
+   #include <fstream>
 
-int main() {
-    // 创建测试 JSON 文件
-    std::ofstream out("test.json");
-    out << R"({
-        "library": {
-            "name": "simdjson",
-            "version": "1.0.0",
-            "authors": ["Daniel Lemire", "Geoff Langdale"]
-        },
-        "performance": {
-            "speed": "gigabytes per second",
-            "optimizations": ["SIMD", "SVE2", "NEON"]
-        },
-        "downloads": 1000000
-    })";
-    out.close();
+   int main() {
+       // 创建测试 JSON 文件
+       std::ofstream out("test.json");
+       out << R"({
+           "library": {
+               "name": "simdjson",
+               "version": "1.0.0",
+               "authors": ["Daniel Lemire", "Geoff Langdale"]
+           },
+           "performance": {
+               "speed": "gigabytes per second",
+               "optimizations": ["SIMD", "AVX", "NEON"]
+           },
+           "downloads": 1000000
+       })";
+       out.close();
     
-    // DOM 模式解析
-    simdjson::dom::parser parser;
-    simdjson::dom::element doc = parser.load("test.json");
+       // DOM 模式解析
+       simdjson::dom::parser parser;
+       simdjson::dom::element doc = parser.load("test.json");
     
-    std::cout << "=== DOM Mode ===" << std::endl;
-    std::string_view name = doc["library"]["name"];
-    std::string_view version = doc["library"]["version"];
-    std::cout << name << " v" << version << std::endl;
+       std::cout << "=== DOM Mode ===" << std::endl;
+       std::string_view name = doc["library"]["name"];
+       std::string_view version = doc["library"]["version"];
+       std::cout << name << " v" << version << std::endl;
     
-    std::cout << "Authors: ";
-    for (auto author : doc["library"]["authors"]) {
-        std::cout << std::string_view(author) << " ";
-    }
-    std::cout << std::endl;
+       std::cout << "Authors: ";
+       for (auto author : doc["library"]["authors"]) {
+           std::cout << std::string_view(author) << " ";
+       }
+       std::cout << std::endl;
     
-    std::cout << "Optimizations: ";
-    for (auto opt : doc["performance"]["optimizations"]) {
-        std::cout << std::string_view(opt) << " ";
-    }
-    std::cout << std::endl;
+       std::cout << "Optimizations: ";
+       for (auto opt : doc["performance"]["optimizations"]) {
+           std::cout << std::string_view(opt) << " ";
+       }
+       std::cout << std::endl;
     
-    int64_t downloads = doc["downloads"];
-    std::cout << "Downloads: " << downloads << std::endl;
+       int64_t downloads = doc["downloads"];
+       std::cout << "Downloads: " << downloads << std::endl;
     
-    return 0;
-}
-```
+       return 0;
+   }
+   ```
 
-编译并运行：
+2. 编译并运行。
 
-```bash
-g++ -o example example.cpp ./simdjson.cpp -I./ -std=c++17
-./example
-```
+   ```bash
+   g++ -o example example.cpp ./simdjson.cpp -I./ -std=c++17
+   ./example
+   ```
 
-运行结果：
+   运行结果如下。
 
-```text
-=== DOM Mode ===
-simdjson v1.0.0
-Authors: Daniel Lemire Geoff Langdale 
-Optimizations: SIMD SVE2 NEON 
-Downloads: 1000000
-```
+   ```text
+   === DOM Mode ===
+   simdjson v1.0.0
+   Authors: Daniel Lemire Geoff Langdale 
+   Optimizations: SIMD AVX NEON 
+   Downloads: 1000000
+   ```
