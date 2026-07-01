@@ -2,9 +2,9 @@
 
 ## 函数说明
 
-simdjson补丁仓已优化函数如[**表 1** simdjson补丁仓已优化函数列表](#simdjson补丁仓已优化函数列表)所示。
+SimdJSON补丁仓已优化函数如[**表 1** SimdJSON补丁仓已优化函数列表](#simdjson补丁仓已优化函数列表)所示。
 
-**表 1** simdjson补丁仓已优化函数列表<a id="simdjson补丁仓已优化函数列表"></a>
+**表 1** SimdJSON补丁仓已优化函数列表<a id="simdjson补丁仓已优化函数列表"></a>
 
 |名称|说明|
 |--|--|
@@ -41,7 +41,7 @@ simdjson_result<element> parser.parse(const padded_string &s) noexcept;
 > **说明：** 
 >解析过程中会进行语法检查和UTF-8校验。如果JSON格式不正确，可通过`.error()`方法检查错误码。
 >
-**关于padding 的使用：** simdjson使用SIMD指令批量处理数据，会在输入末尾读取额外的`SIMDJSON_PADDING`（默认64字节）用于性能优化和保证正确性。因此输入缓冲区必须包含这些额外字节。推荐使用：
+**关于padding 的使用：** SimdJSON使用SIMD指令批量处理数据，会在输入末尾读取额外的`SIMDJSON_PADDING`（默认64字节）用于性能优化和保证正确性。因此输入缓冲区必须包含这些额外字节。推荐使用：
 
 - `_padded`字面量后缀（字符串字面量）。
 - `padded_string::load("file.json")`（从文件加载）。

@@ -1,78 +1,78 @@
-# 安装指南
+# Installation Guide
 
-本文档提供基于鲲鹏优化的SimdJSON编译环境配置与编译安装的详细指导。
+This document provides detailed guidance on configuring the compilation environment and compiling/installing Kunpeng-optimized simdjson.
 
-## 环境要求
+## Environment Requirements
 
-|项目 | 版本与要求 |
+|Item| Version Requirement|
 | ------ | ---------- | 
-| 硬件配置 | 鲲鹏950处理器（支持NEON/SVE/SVE2指令集）|
-| 操作系统 | openEuler 24.03 LTS SP3、Debian 12 |
-| 编译器 | LLVM Clang 16.0.6/GCC 10.0+ |
-| 构建工具 | CMake 3.15+、Git、Python 3 |
+| Hardware| Kunpeng 950 processor (supporting NEON/SVE/SVE2)|
+| OS| openEuler 24.03 LTS SP3, Debian 12|
+| Compiler| LLVM Clang 16.0.6/GCC 10.0+ |
+| Build tool| CMake 3.15+, Git, Python 3|
 
-## 获取源码
+## Obtaining the Source Code
 
-* 方式一：从GitCode克隆优化分支。
+* Approach 1: Clone the optimized branch from GitCode.
 
-  克隆SVE2优化分支。
+  Clone the SVE2 optimized branch.
 
   ```bash
   git clone -b dev_sve2 https://gitcode.com/boostkit/simdjson.git
   cd simdjson
   ```
 
-* 方式二：下载补丁并应用到社区版本。
+* Approach 2: Download the patch and apply it to the community version.
 
-  1. 克隆simdjson官方社区版本。
+  1. Clone the official community version of simdjson.
 
      ```bash
      git clone https://github.com/simdjson/simdjson.git
      cd simdjson
      ```
 
-  2. 检出指定的commit。
+  2. Check out the specified commit.
 
      ```bash
      git checkout c2f25ab4
      ```
 
-  3. 下载鲲鹏优化的simdjson补丁。
+  3. Download the Kunpeng-optimized simdjson patch.
 
      ```bash
      wget https://raw.gitcode.com/boostkit/simdjson/raw/master/kunpeng_opti_sve2.patch
      ```
 
-  4. 应用补丁。
+  4. Apply the patch.
 
      ```bash
      git apply kunpeng_opti_sve2.patch
      ```
 
-## 编译安装
+## Compilation and Installation
 
-### 基础编译（基线版本）
+### Baseline Compilation
 
-默认编译会包含所有架构的实现，支持运行时自动检测CPU能力。
+The default compilation includes implementations for all architectures and supports runtime auto-detection of CPU capabilities.
 
-1. 配置构建。
+1. Configure the build.
 
    ```bash
    cmake -B build \
      -DCMAKE_BUILD_TYPE=Release
    ```
 
-2. 编译。
+2. Compile.
 
    ```bash
    cmake --build build -j
    ```
 
-### SVE2优化编译（鲲鹏950处理器）
+### SVE2 Optimized Compilation (Kunpeng 950 Processor)
 
-启用SVE2编译选项以充分发挥鲲鹏处理器的优化性能。
+Enable SVE2 compilation options to fully leverage the optimized performance of the Kunpeng processor.
 
-1. 配置CMake并启用SVE2支持。
+1. Configure CMake and enable SVE2 support.
 
    ```bash
    cmake -B build/ \
@@ -82,65 +82,65 @@
      -DCMAKE_INSTALL_PREFIX=$HOME/.local/simdjson
    ```
 
-2. 编译
+2. Compile.
 
    ```bash
    cmake --build build/ -j
    ```
 
-3. 安装到指定目录
+3. Install to a specified directory.
 
    ```bash
    cmake --install build/
    ```
 
-### 编译选项说明
+### Compilation Option Description
 
-| 选项 | 说明 | 默认值 |
+| Option| Description| Default Value|
 |--|--|--|
-| `CMAKE_BUILD_TYPE` | 构建类型（Debug/Release/RelWithDebInfo）。 | Release |
-| `SIMDJSON_DEVELOPER_MODE` | 启用开发者模式（包含测试和基准测试）。 | OFF |
-| `CMAKE_CXX_FLAGS` | 编译器标志（-march 启用 SVE2）。 | - |
-| `CMAKE_INSTALL_PREFIX` | 安装路径。 | /usr/local |
-| `BUILD_SHARED_LIBS` | 构建共享库而非静态库。 | OFF |
+| `CMAKE_BUILD_TYPE` | Build type (Debug/Release/RelWithDebInfo).| Release |
+| `SIMDJSON_DEVELOPER_MODE` | Enables the developer mode (including tests and benchmarks).| OFF |
+| `CMAKE_CXX_FLAGS` | Compiler flags (e.g., `-march` to enable SVE2).| - |
+| `CMAKE_INSTALL_PREFIX` | Installation path.| /usr/local |
+| `BUILD_SHARED_LIBS` | Builds a shared library instead of a static library.| OFF |
 
-## 单头文件使用
+## Single-Header Usage
 
-simdjson提供单头文件分发形式，适合直接嵌入项目或验证优化效果。
+simdjson provides a single-header distribution format, which is suitable for direct embedding into projects or verifying optimization effects.
 
-**生成单头文件**
+**Generating Single-Header Files**
 
-使用以下命令生成单头文件。
+Use the following command to generate single-header files:
 
 ```bash 
 python3 singleheader/amalgamate.py
 ```
 
-生成的文件如下：
+The generated files are as follows:
 
-* 头文件：singleheader/simdjson.h
-* 实现文件：singleheader/simdjson.cpp
+- Header file: `singleheader/simdjson.h`
+- Implementation file: `singleheader/simdjson.cpp`
 
-**使用单头文件**
+**Using Single-Header Files**
 
-将`simdjson.h`和`simdjson.cpp`拷贝到项目中，按照以下命令进行编译。
+Copy `simdjson.h` and `simdjson.cpp` into your project, and use the following command to compile.
 
-* 基础编译
+* Basic compilation
 
   ```bash
   g++ -o your_app your_app.cpp ./simdjson.cpp -I./ -std=c++17
   ```
 
-* 带SVE2优化编译
+* Compilation with SVE2 optimization
 
   ```bash
   g++ -o your_app your_app.cpp ./simdjson.cpp -I./ -std=c++17 \
       -march=armv8-a+sve+crc+sve2 -msve-vector-bits=256
   ```
 
-## 在项目中集成
+## Integration into Projects
 
-**方式一：使用已安装的库**
+**Approach 1: Using the Installed Library**
 
 ```cmake
 # CMakeLists.txt
@@ -148,7 +148,7 @@ find_package(simdjson REQUIRED)
 target_link_libraries(your_target PRIVATE simdjson::simdjson)
 ```
 
-编译时需要指定安装路径。
+The installation path needs to be specified during compilation.
 
 ```bash
 g++ -std=c++17 your_app.cpp \
@@ -157,7 +157,7 @@ g++ -std=c++17 your_app.cpp \
   -lsimdjson -o your_app
 ```
 
-**方式二：作为子模块集成**
+**Approach 2: Integrating as a Submodule**
 
 ```cmake
 # CMakeLists.txt
@@ -165,7 +165,7 @@ add_subdirectory(external/simdjson)
 target_link_libraries(your_target PRIVATE simdjson)
 ```
 
-**方式三：使用FetchContent**
+**Approach 3: Using FetchContent**
 
 ```cmake
 # CMakeLists.txt
@@ -179,68 +179,68 @@ FetchContent_MakeAvailable(simdjson)
 target_link_libraries(your_target PRIVATE simdjson)
 ```
 
-## 测试
+## Tests
 
-### 单元测试
+### Unit Tests
 
-1. 运行所有测试用例。
+1. Run all test cases.
 
    ```bash
    ctest --test-dir build -j
    ```
 
-2. 运行特定测试。
+2. Run a specific test.
 
    ```bash
    ctest --test-dir build -R dom_tests
    ctest --test-dir build -R ondemand_tests
    ```
 
-### 性能基准测试
+### Performance Benchmarks
 
-1. DOM解析基准测试。
+1. DOM parsing benchmarks
 
-   * 单文档parse()
+   * Parse a single document `parse()`.
 
      ```bash
      numactl -C 21 ./build/benchmark/dom/parse -n 1000 ./jsonexamples/twitter.json
      ```
 
-   * 多文档解析parse_many()
+   * Parse multiple documents `parse_many()`.
 
      ```bash
      numactl -C 21 ./build/benchmark/dom/parse_stream ./jsonexamples/amazon_cellphones.ndjson
      ```
 
-2. Google Benchmark测试。
+2. Google Benchmark tests
 
-   * 通用解析基准测试
+   * General parsing benchmark
 
      ```bash
      numactl -C 21 ./build/benchmark/bench_parse_call --benchmark_min_time=3s 2>&1
      ```
 
-   * DOM API性能测试
+   * DOM API performance test
 
      ```bash
      numactl -C 21 ./build/benchmark/bench_dom_api --benchmark_min_time=3s 2>&1
      ```
 
-   * On-Demand API性能测试
+   * On-Demand API performance test
 
      ```bash
      numactl -C 21 ./build/benchmark/bench_ondemand --benchmark_min_time=3s 2>&1
      ```
 
-   * 多文档解析基准性能测试
+   * Multi-document parsing benchmark
 
      ```bash
      numactl -C 21 ./build/benchmark/bench_stream_formats --benchmark_min_time=3s 2>&1
      ```
 
-## 安装验证
+## Installation Verification
 
-1. 创建测试文件`example.cpp`。
+1. Create the test file `example.cpp`.
 
    ```cpp
    #include <simdjson.h>
@@ -256,14 +256,14 @@ target_link_libraries(your_target PRIVATE simdjson)
     
        std::cout << "Library: " << name << ", Version: " << version << std::endl;
     
-       // 查看当前活动实现
+       // Check the active implementation.
        std::cout << "Implementation: " << simdjson::get_active_implementation()->name() << std::endl;
     
        return 0;
    }
    ```
 
-2. 使用已安装的静态库编译。
+2. Use the installed static library for compilation.
 
    ```bash
    g++ -std=c++17 example.cpp \
@@ -272,28 +272,28 @@ target_link_libraries(your_target PRIVATE simdjson)
      -lsimdjson -o example
    ```
 
-3. 运行程序。
+3. Run the program.
 
    ```bash
     ./example
     ```
 
-   预期输出如下信息：
+   The expected output is as follows:
 
    ```text
    Library: simdjson, Version: 1.0.0
    Active implementation: arm64
    ```
 
-4. 验证SVE2优化。
+4. Verify SVE2 optimization.
 
-   检查生成的二进制文件中是否包含SVE2 match指令。
+   Check whether the generated binary file contains SVE2 match instructions.
 
    ```bash
    objdump -d ./example | grep z0 | grep match
    ```
 
-   预期输出如下信息（包含SVE2 match指令）：
+   The expected output is as follows (including SVE2 match instructions):
 
    ```text
      413e9c: 45268c00  match p0.b, p3/z, z0.b, z6.b
