@@ -1,24 +1,24 @@
-# 快速入门
+# Quick Start
 
-## SimdJSON基础概念
+## Basic Concepts of simdjson
 
-SimdJSON提供两种主要的JSON访问模式。
+simdjson provides two main JSON access modes:
 
-- **DOM模式**：一次解析，构建完整的文档树，支持随机访问和多次遍历。
-- **On-Demand模式**：按需遍历，只解析访问到的部分，内存占用更低。
+- **DOM Mode**: Parses JSON at once to build a complete document tree, supporting random access and multiple iterations.
+- **On-Demand Mode**: Iterates through JSON on demand, parsing only the accessed components, resulting in lower memory usage.
 
-详细的API使用方法和示例请参见《[API参考](./api_reference.md)》。
+For detailed API usage and examples, see [API Reference](./api_reference.md).
 
-## 运行时实现选择
+## Runtime Implementation Selection
 
-SimdJSON会自动选择适合当前CPU的最佳实现。
+simdjson automatically selects the optimal implementation for the current CPU.
 
 ```cpp
 #include <simdjson.h>
 #include <iostream>
 
 int main() {
-    // 查看可用的实现
+    // Check available implementations.
     std::cout << "Available implementations:" << std::endl;
     for (auto impl : simdjson::get_available_implementations()) {
         std::cout << "  - " << impl->name() 
@@ -27,18 +27,18 @@ int main() {
                   << std::endl;
     }
     
-    // 查看当前活动实现
+    // Check the active implementation.
     std::cout << "Implementation: " << simdjson::get_active_implementation()->name() << std::endl;
     
     return 0;
 }
 ```
 
-在鲲鹏处理器上，您应该看到`arm64`实现处于活跃状态。
+On the Kunpeng processor, you should see the `arm64` implementation active, with SVE2 optimization support.
 
-## 使用示例
+## Usage Example
 
-1. 创建`example.cpp`。
+1. Create a `example.cpp` file.
 
    ```cpp
    #include <simdjson.h>
@@ -46,7 +46,7 @@ int main() {
    #include <fstream>
 
    int main() {
-       // 创建测试 JSON 文件
+       // Create a test JSON file.
        std::ofstream out("test.json");
        out << R"({
            "library": {
@@ -56,13 +56,13 @@ int main() {
            },
            "performance": {
                "speed": "gigabytes per second",
-               "optimizations": ["SIMD", "AVX", "NEON"]
+               "optimizations": ["SIMD", "SVE2", "NEON"]
            },
            "downloads": 1000000
        })";
        out.close();
     
-       // DOM 模式解析
+       // DOM mode parsing
        simdjson::dom::parser parser;
        simdjson::dom::element doc = parser.load("test.json");
     
@@ -90,19 +90,19 @@ int main() {
    }
    ```
 
-2. 编译并运行。
+2. Build and run.
 
    ```bash
    g++ -o example example.cpp ./simdjson.cpp -I./ -std=c++17
    ./example
    ```
 
-   运行结果如下。
+   The execution result is as follows:
 
    ```text
    === DOM Mode ===
    simdjson v1.0.0
    Authors: Daniel Lemire Geoff Langdale 
-   Optimizations: SIMD AVX NEON 
+   Optimizations: SIMD SVE2 NEON 
    Downloads: 1000000
    ```
